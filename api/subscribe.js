@@ -36,10 +36,10 @@ function emailHtml() {
 </td></tr></table>
 
 <p style="margin:22px 0 0;font-size:15px;line-height:1.6;color:#52525B;">It lives in your menu bar and nudges you every 20 minutes: look 20 feet away, for 20 seconds. That's the whole thing. No dashboard, no streaks, no guilt.</p>
-<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#18181B;">&mdash; Mohammed<br><span style="color:#71717A;font-size:14px;">I built this. Reply if it breaks.</span></p>
+<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#18181B;">&mdash; The iRetina team<br><span style="color:#71717A;font-size:14px;">Reply to this email if anything breaks. We read every one.</span></p>
 
 <hr style="border:0;border-top:1px solid #E5E5E7;margin:26px 0 20px;">
-<p style="margin:0;font-size:14px;line-height:1.6;color:#52525B;"><strong style="color:#18181B;">P.S.</strong> Which building was the poster in? Hit reply and tell me &mdash; I'm trying to work out which spots actually work.</p>
+<p style="margin:0;font-size:14px;line-height:1.6;color:#52525B;"><strong style="color:#18181B;">P.S.</strong> Which building was the poster in? Hit reply and tell us &mdash; we're trying to work out which spots actually work.</p>
 
 </td></tr></table>
 <p style="margin:18px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#A1A1AA;">You asked for this link at a poster on campus.</p>
@@ -52,8 +52,8 @@ function emailText() {
     "iRetina is a macOS menu bar app, so open this email on your Mac and install it here:",
     APP_STORE_URL, "",
     "It sits in your menu bar and nudges you every 20 minutes: look 20 feet away, for 20 seconds.",
-    "", "- Mohammed (I built this. Reply if it breaks.)", "",
-    "P.S. Which building was the poster in? Hit reply and tell me."
+    "", "- The iRetina team (reply if anything breaks - we read every one)", "",
+    "P.S. Which building was the poster in? Hit reply and tell us."
   ].join("\n");
 }
 
