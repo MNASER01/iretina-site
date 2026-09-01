@@ -5,6 +5,7 @@ const RESEND_KEY   = process.env.RESEND_API_KEY;
 const APP_STORE_URL = process.env.APP_STORE_URL || "https://apps.apple.com/app/id0000000000";
 const FROM          = process.env.FROM_EMAIL || "iRetina <onboarding@resend.dev>";
 const NOTIFY        = process.env.NOTIFY_EMAIL;
+const SHEET_WEBHOOK_URL = process.env.SHEET_WEBHOOK_URL;
 
 async function resend(path, body) {
   const r = await fetch("https://api.resend.com" + path, {
@@ -36,7 +37,7 @@ function emailHtml() {
 </td></tr></table>
 
 <p style="margin:22px 0 0;font-size:15px;line-height:1.6;color:#52525B;">It lives in your menu bar and nudges you every 20 minutes: look 20 feet away, for 20 seconds. That's the whole thing. No dashboard, no streaks, no guilt.</p>
-<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#18181B;">&mdash; The iRetina Team<br><span style="color:#71717A;font-size:14px;">Reply to this email if anything breaks. We read every one.</span></p>
+<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#18181B;">&mdash; The iRetina team<br><span style="color:#71717A;font-size:14px;">Reply to this email if anything breaks. We read every one.</span></p>
 
 <hr style="border:0;border-top:1px solid #E5E5E7;margin:26px 0 20px;">
 <p style="margin:0;font-size:14px;line-height:1.6;color:#52525B;"><strong style="color:#18181B;">P.S.</strong> Which building was the poster in? Hit reply and tell us &mdash; we're trying to work out which spots actually work.</p>
@@ -97,6 +98,15 @@ module.exports = async (req, res) => {
         subject: "+1 lead · " + poster,
         text: clean + "\nposter: " + poster + "\n" + new Date().toISOString()
       }).catch(e => console.error("notify failed", e));
+    }
+
+    // 3. Log it to your spreadsheet, so you have an actual list (not just email pings).
+    if (SHEET_WEBHOOK_URL) {
+      fetch(SHEET_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: clean, poster: poster })
+      }).catch(e => console.error("sheet log failed", e));
     }
 
     console.log(JSON.stringify({ evt: "lead", email: clean, poster }));
