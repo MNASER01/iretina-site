@@ -4,5 +4,5 @@
   "private": true,
   "type": "module",
   "engines": { "node": "22.x" },
-  "dependencies": { "@neondatabase/serverless": "^1.2.1" }
+  "dependencies": { "@neondatabase/serverless": "^1.2.1", "@vercel/functions": "^3.0.0" }
 }

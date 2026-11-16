@@ -2,7 +2,7 @@
 //   /college/ios          -> saves a scan, then sends the phone to the iPhone App Store page.
 //   page load (beacon)    -> the email page calls /api/go?p=mac&beacon=1 and this saves the scan only.
 //   /r/mac                -> saves a click on "Get iRetina for Mac", then opens the Mac App Store page.
-import { IOS_URL, MAC_URL, cleanCampaign, logToSheet } from './_lib.js';
+import { IOS_URL, MAC_URL, cleanCampaign } from './_lib.js';
 import { track, isBot } from './_db.js';
 
 export default async function handler(req, res) {
@@ -20,10 +20,8 @@ export default async function handler(req, res) {
   const platform = p === 'mac' || p === 'windows' ? p : 'ios';
   if (!bot) {
     console.log(JSON.stringify({ evt: 'scan', platform, campaign, at: new Date().toISOString() }));
-    await Promise.allSettled([
-      track(req, { type: 'scan', platform, campaign }),
-      logToSheet('[scan]', `${campaign}/${platform}`),
-    ]);
+    // Scans go to the database only. The old Google Sheet link is slow, and a scan must redirect fast.
+    await track(req, { type: 'scan', platform, campaign });
   }
   if (platform !== 'ios') return res.status(204).end();
   return res.redirect(302, IOS_URL);

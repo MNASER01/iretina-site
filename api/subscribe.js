@@ -2,6 +2,7 @@
 // It emails the Mac App Store link, saves the lead, and tells the owner.
 // Settings come from the Vercel Environment Variables: RESEND_API_KEY, FROM_EMAIL, NOTIFY_EMAIL, SHEET_WEBHOOK_URL.
 import { IOS_URL, SITE, cleanCampaign, unsubToken, resend, logToSheet } from './_lib.js';
+import { waitUntil } from '@vercel/functions';
 import { track } from './_db.js';
 
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,185}\.[a-z]{2,24}$/i;
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
   if (body.platform === 'windows') {
     const poster = campaign + '/windows-waitlist';
     let saved = await track(req, { type: 'waitlist', platform: 'windows', campaign, email });
-    await logToSheet(email, poster);
+    waitUntil(logToSheet(email, poster)); // the old sheet is slow, so it runs after the answer is sent
     if (process.env.NOTIFY_EMAIL) {
       const note = await resend('/emails', 'POST', {
         from, to: [process.env.NOTIFY_EMAIL],
@@ -64,7 +65,6 @@ export default async function handler(req, res) {
   // 2. Save the lead. These steps can fail without an effect on the person.
   const saves = [
     track(req, { type: 'lead', platform: 'mac', campaign, email }),
-    logToSheet(email, campaign),
     resend('/contacts', 'POST', { email, unsubscribed: false }).catch(() => null),
   ];
   if (process.env.NOTIFY_EMAIL) {
@@ -75,6 +75,7 @@ export default async function handler(req, res) {
     }).catch(() => null));
   }
   await Promise.allSettled(saves);
+  waitUntil(logToSheet(email, campaign)); // the old sheet is slow, so it runs after the answer is sent
 
   console.log(JSON.stringify({ evt: 'lead', campaign, at: new Date().toISOString() }));
   return res.status(200).json({ ok: true });

@@ -1,5 +1,6 @@
 // Unsubscribe link from the email. It marks the contact in Resend, adds a row to the sheet, and tells the owner.
 import { unsubToken, resend, logToSheet } from './_lib.js';
+import { waitUntil } from '@vercel/functions';
 import { track } from './_db.js';
 
 export default async function handler(req, res) {
@@ -12,7 +13,7 @@ export default async function handler(req, res) {
   if (valid && confirmed) {
     await resend(`/contacts/${encodeURIComponent(email)}`, 'PATCH', { unsubscribed: true }).catch(() => null);
     await track(req, { type: 'unsub', platform: 'mac', campaign: 'unsubscribe', email });
-    await logToSheet(email, 'UNSUBSCRIBED');
+    waitUntil(logToSheet(email, 'UNSUBSCRIBED'));
     if (process.env.NOTIFY_EMAIL && process.env.FROM_EMAIL) {
       await resend('/emails', 'POST', {
         from: process.env.FROM_EMAIL, to: [process.env.NOTIFY_EMAIL],
