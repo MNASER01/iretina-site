@@ -1,0 +1,17 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/ios", "destination": "/api/go?p=ios&c=direct" },
+    { "source": "/mac", "destination": "/index.html" },
+    { "source": "/unsubscribe", "destination": "/api/unsubscribe" },
+    { "source": "/:campaign/ios", "destination": "/api/go?p=ios&c=:campaign" },
+    { "source": "/:campaign/mac", "destination": "/index.html" }
+  ],
+  "headers": [
+    { "source": "/(.*)", "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+    ] }
+  ]
+}

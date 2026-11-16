@@ -1,119 +1,116 @@
-// Vercel serverless function. Lives at /api/subscribe on your live site.
-// Reads its settings from Environment Variables you set in the Vercel dashboard.
+// Runs when a person sends the form on the Mac page.
+// It emails the Mac App Store link, saves the lead, and tells the owner.
+// Settings come from the Vercel Environment Variables: RESEND_API_KEY, FROM_EMAIL, NOTIFY_EMAIL, SHEET_WEBHOOK_URL.
+import { MAC_URL, IOS_URL, SITE, cleanCampaign, unsubToken, resend, logToSheet } from './_lib.js';
 
-const RESEND_KEY   = process.env.RESEND_API_KEY;
-const APP_STORE_URL = process.env.APP_STORE_URL || "https://apps.apple.com/app/id0000000000";
-const FROM          = process.env.FROM_EMAIL || "iRetina <onboarding@resend.dev>";
-const NOTIFY        = process.env.NOTIFY_EMAIL;
-const SHEET_WEBHOOK_URL = process.env.SHEET_WEBHOOK_URL;
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,185}\.[a-z]{2,24}$/i;
 
-async function resend(path, body) {
-  const r = await fetch("https://api.resend.com" + path, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + RESEND_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error("Resend " + r.status + ": " + (await r.text()));
-  return r.json();
-}
-
-function emailHtml() {
-  return `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light"><title>Your iRetina download</title></head>
-<body style="margin:0;padding:0;background:#F4F4F5;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">One tap installs it from the Mac App Store.</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F5;">
-<tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:440px;background:#FFFFFF;border-radius:14px;border:1px solid #E5E5E7;">
-<tr><td style="padding:32px 28px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#18181B;">
-
-<p style="margin:0 0 18px;font-size:16px;line-height:1.55;">Thanks for scanning.</p>
-<p style="margin:0 0 24px;font-size:16px;line-height:1.55;">iRetina is a <strong>macOS</strong> app, so open this email on your Mac and hit the button:</p>
-
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
-<td align="center" style="border-radius:12px;background:#111113;">
-<a href="${APP_STORE_URL}" style="display:block;padding:17px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:17px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:12px;">Install iRetina for Mac</a>
-</td></tr></table>
-
-<p style="margin:22px 0 0;font-size:15px;line-height:1.6;color:#52525B;">It lives in your menu bar and nudges you every 20 minutes: look 20 feet away, for 20 seconds. That's the whole thing. No dashboard, no streaks, no guilt.</p>
-<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#18181B;">&mdash; The iRetina team<br><span style="color:#71717A;font-size:14px;">Reply to this email if anything breaks. We read every one.</span></p>
-
-<hr style="border:0;border-top:1px solid #E5E5E7;margin:26px 0 20px;">
-<p style="margin:0;font-size:14px;line-height:1.6;color:#52525B;"><strong style="color:#18181B;">P.S.</strong> Which building was the poster in? Hit reply and tell us &mdash; we're trying to work out which spots actually work.</p>
-
-</td></tr></table>
-<p style="margin:18px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#A1A1AA;">You asked for this link at a poster on campus.</p>
-</td></tr></table></body></html>`;
-}
-
-function emailText() {
-  return [
-    "Thanks for scanning.", "",
-    "iRetina is a macOS menu bar app, so open this email on your Mac and install it here:",
-    APP_STORE_URL, "",
-    "It sits in your menu bar and nudges you every 20 minutes: look 20 feet away, for 20 seconds.",
-    "", "- The iRetina team (reply if anything breaks - we read every one)", "",
-    "P.S. Which building was the poster in? Hit reply and tell us."
-  ].join("\n");
-}
-
-module.exports = async (req, res) => {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  try {
-    if (!RESEND_KEY) {
-      console.error("RESEND_API_KEY is not set");
-      return res.status(500).json({ error: "Mail is not set up yet." });
-    }
-
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { email, loc, company } = body;
-
-    // Honeypot: bots fill this hidden field, humans can't see it. Pretend it worked.
-    if (company) return res.status(200).json({ ok: true });
-
-    const clean = String(email || "").trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(clean) || clean.length > 254) {
-      return res.status(400).json({ error: "That email doesn't look right." });
-    }
-
-    const poster = String(loc || "unknown").replace(/[^a-z0-9_-]/gi, "").slice(0, 32) || "unknown";
-
-    // 1. The download email. This is the one thing that must not fail quietly.
-    await resend("/emails", {
-      from: FROM,
-      to: [clean],
-      subject: "Your iRetina download (open this on your Mac)",
-      html: emailHtml(),
-      text: emailText(),
-      tags: [{ name: "campaign", value: "campus_posters" }, { name: "poster", value: poster }]
-    });
-
-    // 2. Ping yourself, so you can watch leads land from your phone.
-    if (NOTIFY) {
-      resend("/emails", {
-        from: FROM,
-        to: [NOTIFY],
-        subject: "+1 lead · " + poster,
-        text: clean + "\nposter: " + poster + "\n" + new Date().toISOString()
-      }).catch(e => console.error("notify failed", e));
-    }
-
-    // 3. Log it to your spreadsheet, so you have an actual list (not just email pings).
-    if (SHEET_WEBHOOK_URL) {
-      fetch(SHEET_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: clean, poster: poster })
-      }).catch(e => console.error("sheet log failed", e));
-    }
-
-    console.log(JSON.stringify({ evt: "lead", email: clean, poster }));
-    return res.status(200).json({ ok: true });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Couldn't send that. Try again?" });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  if (!process.env.RESEND_API_KEY) {
+    console.error('RESEND_API_KEY is not set');
+    return res.status(500).json({ ok: false, error: 'Mail is not set up yet.' });
   }
-};
+
+  let body = req.body || {};
+  if (typeof body === 'string') { try { body = JSON.parse(body || '{}'); } catch { body = {}; } }
+
+  // Honeypot: bots fill this hidden field. People cannot see it. Answer "ok" and do nothing.
+  if (body.company) return res.status(200).json({ ok: true });
+
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email) || email.length > 254) {
+    return res.status(400).json({ ok: false, error: 'That email does not look right.' });
+  }
+  const campaign = cleanCampaign(body.campaign || body.loc);
+  const from = process.env.FROM_EMAIL || 'iRetina <support@iretina.app>';
+  const unsub = `${SITE}/unsubscribe?e=${encodeURIComponent(email)}&t=${unsubToken(email)}`;
+
+  // 1. The download email. This step must not fail silently.
+  const sent = await resend('/emails', 'POST', {
+    from,
+    to: [email],
+    subject: 'Your iRetina for Mac link',
+    html: emailHtml(unsub),
+    text: emailText(unsub),
+    headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+    tags: [{ name: 'campaign', value: campaign }, { name: 'flow', value: 'mac_link' }],
+  });
+  if (!sent.ok) {
+    console.error('send failed', sent.status, JSON.stringify(sent.data));
+    return res.status(502).json({ ok: false, error: 'We could not send the email. Try again.' });
+  }
+
+  // 2. Save the lead. These steps can fail without an effect on the person.
+  const saves = [
+    logToSheet(email, campaign),
+    resend('/contacts', 'POST', { email, unsubscribed: false }).catch(() => null),
+  ];
+  if (process.env.NOTIFY_EMAIL) {
+    saves.push(resend('/emails', 'POST', {
+      from, to: [process.env.NOTIFY_EMAIL],
+      subject: 'New Mac lead: ' + campaign,
+      text: `${email}\ncampaign: ${campaign}\n${new Date().toISOString()}`,
+    }).catch(() => null));
+  }
+  await Promise.allSettled(saves);
+
+  console.log(JSON.stringify({ evt: 'lead', campaign, at: new Date().toISOString() }));
+  return res.status(200).json({ ok: true });
+}
+
+function emailText(unsub) {
+  return [
+    'Here is your iRetina for Mac link.',
+    '',
+    'Open this email on your Mac. Then open this link:',
+    MAC_URL,
+    '',
+    'iRetina gives your eyes a calm 20-second break every 20 minutes.',
+    '7-day free trial, then $4.99/month or $49.99/year. Requires macOS 15.5 or later.',
+    '',
+    'On iPhone too: ' + IOS_URL,
+    '',
+    'Questions? Reply to this email.',
+    '',
+    'You get this email because you asked for the link at iRetina.app. We also send iRetina tips now and then.',
+    'Unsubscribe: ' + unsub,
+  ].join('\n');
+}
+
+function emailHtml(unsub) {
+  const font = "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif";
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>Your iRetina for Mac link</title></head>
+<body style="margin:0;padding:0;background:#000000;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Open this email on your Mac. One button installs iRetina.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#000000;">
+<tr><td align="center" style="padding:36px 16px 44px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px;font-family:${font};color:#f5f5f7;">
+<tr><td style="padding:0 4px 26px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td style="padding-right:10px;"><img src="https://iretina.app/assets/v2/logo-128.png" width="30" height="30" alt="" style="display:block;border:0;"></td>
+  <td style="font-family:${font};font-size:19px;font-weight:600;letter-spacing:-0.3px;color:#f5f5f7;">iRetina</td>
+  </tr></table>
+</td></tr>
+<tr><td style="background:#111113;border:1px solid #232326;border-radius:22px;padding:34px 30px 32px;">
+  <p style="margin:0 0 12px;font-family:${font};font-size:30px;line-height:1.1;font-weight:600;letter-spacing:-0.9px;color:#ffffff;">Here is your Mac link.</p>
+  <p style="margin:0 0 26px;font-family:${font};font-size:17px;line-height:1.5;color:#a1a1a6;">Open this email on your Mac. Then press the button.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+  <td align="center" bgcolor="#0a7cff" style="border-radius:999px;background:#0a7cff;">
+    <a href="${MAC_URL}" style="display:inline-block;padding:14px 26px;font-family:${font};font-size:16px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:999px;">Get iRetina for Mac</a>
+  </td></tr></table>
+  <p style="margin:28px 0 0;padding-top:22px;border-top:1px solid #232326;font-family:${font};font-size:15px;line-height:1.55;color:#a1a1a6;">Every 20 minutes, iRetina gives your eyes a calm 20-second break. Look about 20 feet away until the countdown ends.</p>
+  <p style="margin:12px 0 0;font-family:${font};font-size:15px;line-height:1.55;color:#a1a1a6;">7-day free trial, then $4.99/month or $49.99/year. Requires macOS 15.5 or later.</p>
+  <p style="margin:12px 0 0;font-family:${font};font-size:15px;line-height:1.55;color:#a1a1a6;">On iPhone too: <a href="${IOS_URL}" style="color:#3b9bff;text-decoration:none;">get the iPhone app</a>.</p>
+</td></tr>
+<tr><td style="padding:22px 6px 0;font-family:${font};font-size:12px;line-height:1.6;color:#6e6e73;">
+  Questions? Reply to this email.<br>
+  You get this email because you asked for the link at iRetina.app. We also send iRetina tips now and then.
+  <a href="${unsub}" style="color:#a1a1a6;">Unsubscribe</a>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+}
