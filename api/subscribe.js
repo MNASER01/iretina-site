@@ -24,6 +24,25 @@ export default async function handler(req, res) {
   }
   const campaign = cleanCampaign(body.campaign || body.loc);
   const from = process.env.FROM_EMAIL || 'iRetina <support@iretina.app>';
+
+  // Windows waitlist. The promise on the page is one email at launch, so no email goes to the person now.
+  // The lead goes to the sheet and to the owner. At least one of these two must work.
+  if (body.platform === 'windows') {
+    const poster = campaign + '/windows-waitlist';
+    let saved = Boolean(process.env.SHEET_WEBHOOK_URL);
+    await logToSheet(email, poster);
+    if (process.env.NOTIFY_EMAIL) {
+      const note = await resend('/emails', 'POST', {
+        from, to: [process.env.NOTIFY_EMAIL],
+        subject: 'New Windows waitlist lead: ' + campaign,
+        text: `${email}\nlist: ${poster}\n${new Date().toISOString()}`,
+      }).catch(() => ({ ok: false }));
+      saved = saved || note.ok;
+    }
+    console.log(JSON.stringify({ evt: 'waitlist', platform: 'windows', campaign, saved, at: new Date().toISOString() }));
+    if (!saved) return res.status(502).json({ ok: false, error: 'We could not save your email. Try again.' });
+    return res.status(200).json({ ok: true });
+  }
   const unsub = `${SITE}/unsubscribe?e=${encodeURIComponent(email)}&t=${unsubToken(email)}`;
 
   // 1. The download email. This step must not fail silently.

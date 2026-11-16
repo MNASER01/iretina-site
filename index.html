@@ -94,6 +94,16 @@
   .consent a { color:inherit; }
   .facts { margin:26px 0 0; padding-top:20px; border-top:1px solid var(--line); font-size:14px; line-height:1.55; color:var(--text-2); }
 
+  .switch {
+    display:block; width:100%; margin:18px 0 0; padding:12px 8px; border:0; background:none; cursor:pointer;
+    color:var(--accent); font:500 15px var(--sans); text-align:center; border-radius:10px;
+  }
+  .switch:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+  /* Windows waitlist mode: the same form, with different words. */
+  .win .mac-only { display:none !important; }
+  .win-only { display:none; }
+  .win .win-only { display:block; }
+
   .on-mac { display:none; margin:0 0 22px; }
   .on-mac p { margin:14px 0 0; font-size:14px; color:var(--text-3); }
   .is-mac .on-mac { display:block; }
@@ -133,10 +143,12 @@
   </div>
 
   <section class="ask">
-    <h1>Get iRetina on your Mac.</h1>
-    <p class="sub" id="sub">We email you the link. Open it on your Mac and start your free trial.</p>
+    <h1 class="mac-only">Get iRetina on your Mac.</h1>
+    <p class="sub mac-only">We email you the link. Open it on your Mac and start your free trial.</p>
+    <h1 class="win-only">iRetina for Windows is coming soon.</h1>
+    <p class="sub win-only">Type your email. We send you one email when it is ready.</p>
 
-    <div class="on-mac">
+    <div class="on-mac mac-only">
       <a class="btn" href="https://apps.apple.com/us/app/iretina-pro/id6781700588?mt=12">Open the Mac App Store</a>
       <p>Not on your Mac now? Email the link to yourself.</p>
     </div>
@@ -147,22 +159,27 @@
       <div class="hp" aria-hidden="true"><label>Company <input name="company" tabindex="-1" autocomplete="off"></label></div>
       <button class="btn" id="send" type="submit">Email me the link</button>
       <p class="error" id="error" role="alert"></p>
-      <p class="consent">We email your link and iRetina tips now and then. Unsubscribe any time. <a href="https://iretina.app/pages/privacy">Privacy</a></p>
+      <p class="consent mac-only">We email your link and iRetina tips now and then. Unsubscribe any time. <a href="https://iretina.app/pages/privacy">Privacy</a></p>
+      <p class="consent win-only">One email when the Windows version is ready. No other emails. <a href="https://iretina.app/pages/privacy">Privacy</a></p>
     </form>
 
-    <p class="facts">7-day free trial, then $4.99/month or $49.99/year. Requires macOS 15.5 or later.</p>
+    <p class="facts mac-only">7-day free trial, then $4.99/month or $49.99/year. Requires macOS 15.5 or later.</p>
+    <button class="switch mac-only" type="button" id="toWin">On Windows? Get one email when it is ready.</button>
+    <button class="switch win-only" type="button" id="toMac">On a Mac? Get the Mac link.</button>
   </section>
 
   <section class="sent" id="sent" tabindex="-1">
-    <h1>Check your inbox.</h1>
-    <p class="sub">We sent the link to <span id="to">your email</span>.</p>
-    <ol class="steps">
+    <h1 class="mac-only">Check your inbox.</h1>
+    <p class="sub mac-only">We sent the link to <span id="to">your email</span>.</p>
+    <h1 class="win-only">You are on the list.</h1>
+    <p class="sub win-only">We send one email to <span id="toWinEmail">your email</span> when iRetina for Windows is ready.</p>
+    <ol class="steps mac-only">
       <li><b>1</b><span>Open the email on your Mac.</span></li>
       <li><b>2</b><span>Press “Get iRetina for Mac”.</span></li>
       <li><b>3</b><span>Start your 7-day free trial.</span></li>
     </ol>
     <a class="quiet" id="ios" href="/ios">Get the iPhone app too</a>
-    <p class="facts">No email after one minute? Look in your spam folder.</p>
+    <p class="facts mac-only">No email after one minute? Look in your spam folder.</p>
   </section>
 </main>
 
@@ -173,6 +190,22 @@
   var fromQuery = new URLSearchParams(location.search).get('loc');
   var campaign = (parts.length > 1 ? parts[0] : (fromQuery || 'direct')).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32) || 'direct';
   document.getElementById('ios').href = '/' + campaign + '/ios';
+
+  // The page has two modes. "mac" emails the Mac link. "windows" adds the person to the Windows waitlist.
+  // The mode starts as "windows" for the link /college/windows and for a person who is on a Windows PC.
+  var root = document.documentElement;
+  var send = document.getElementById('send');
+  var mode = 'mac';
+  function setMode(next) {
+    mode = next;
+    root.classList.toggle('win', mode === 'windows');
+    send.textContent = mode === 'windows' ? 'Tell me when it is ready' : 'Email me the link';
+    document.title = mode === 'windows' ? 'iRetina for Windows' : 'Get iRetina for Mac';
+    document.getElementById('error').textContent = '';
+  }
+  document.getElementById('toWin').addEventListener('click', function () { setMode('windows'); document.getElementById('email').focus(); });
+  document.getElementById('toMac').addEventListener('click', function () { setMode('mac'); document.getElementById('email').focus(); });
+  if (parts[parts.length - 1] === 'windows' || /Windows NT/.test(navigator.userAgent)) setMode('windows');
 
   // 2. Count the scan one time for each visit.
   try {
@@ -198,7 +231,7 @@
   }
 
   // 5. The form.
-  var form = document.getElementById('form'), send = document.getElementById('send'), error = document.getElementById('error');
+  var form = document.getElementById('form'), error = document.getElementById('error');
   form.addEventListener('submit', function (ev) {
     ev.preventDefault();
     error.textContent = '';
@@ -213,12 +246,13 @@
     fetch('/api/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email, campaign: campaign, company: form.company.value })
+      body: JSON.stringify({ email: email, campaign: campaign, platform: mode, company: form.company.value })
     })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok && d.ok, msg: d.error }; }); })
       .then(function (r) {
         if (!r.ok) throw new Error(r.msg || 'We could not send the email. Try again.');
         document.getElementById('to').textContent = email;
+        document.getElementById('toWinEmail').textContent = email;
         document.getElementById('page').classList.add('done');
         document.getElementById('sent').focus();
         window.scrollTo(0, 0);
@@ -226,7 +260,7 @@
       .catch(function (e) {
         error.textContent = /fetch|network/i.test(e.message) ? 'No connection. Try again.' : e.message;
         send.disabled = false;
-        send.textContent = 'Email me the link';
+        send.textContent = mode === 'windows' ? 'Tell me when it is ready' : 'Email me the link';
       });
   });
 })();

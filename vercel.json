@@ -6,7 +6,9 @@
     { "source": "/mac", "destination": "/" },
     { "source": "/unsubscribe", "destination": "/api/unsubscribe" },
     { "source": "/:campaign/ios", "destination": "/api/go?p=ios&c=:campaign" },
-    { "source": "/:campaign/mac", "destination": "/" }
+    { "source": "/:campaign/mac", "destination": "/" },
+    { "source": "/windows", "destination": "/" },
+    { "source": "/:campaign/windows", "destination": "/" }
   ],
   "headers": [
     { "source": "/(.*)", "headers": [
