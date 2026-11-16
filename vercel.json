@@ -3,10 +3,10 @@
   "trailingSlash": false,
   "rewrites": [
     { "source": "/ios", "destination": "/api/go?p=ios&c=direct" },
-    { "source": "/mac", "destination": "/index.html" },
+    { "source": "/mac", "destination": "/" },
     { "source": "/unsubscribe", "destination": "/api/unsubscribe" },
     { "source": "/:campaign/ios", "destination": "/api/go?p=ios&c=:campaign" },
-    { "source": "/:campaign/mac", "destination": "/index.html" }
+    { "source": "/:campaign/mac", "destination": "/" }
   ],
   "headers": [
     { "source": "/(.*)", "headers": [
