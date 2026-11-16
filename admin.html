@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>iRetina metrics</title>
+<link rel="icon" href="https://iretina.app/assets/v2/logo-128.png">
+<style>
+  /* Site colors from iretina.app. Chart colors passed the palette check for dark surfaces. */
+  :root {
+    --bg:#000; --card:#111113; --raised:#1c1c1f;
+    --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
+    --text:#f5f5f7; --text-2:#a1a1a6; --text-3:#8a8a90;
+    --accent:#3b9bff; --cta:#0a7cff;
+    --s-ios:#3987e5; --s-mac:#d95926; --s-win:#199e70; --s-one:#3987e5;
+    --grid:#232326;
+    --sans:-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Inter, system-ui, sans-serif;
+  }
+  *, *::before, *::after { box-sizing:border-box; }
+  html { background:var(--bg); }
+  body { margin:0; background:var(--bg); color:var(--text); font:400 15px/1.45 var(--sans); -webkit-font-smoothing:antialiased; }
+  [hidden] { display:none !important; }
+  button, select, input { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid #fff; outline-offset:2px; }
+
+  .bar { display:flex; align-items:center; gap:10px; height:56px; padding:0 24px; border-bottom:1px solid var(--line); }
+  .bar img { width:24px; height:24px; }
+  .bar .name { font-size:18px; font-weight:600; letter-spacing:-.02em; }
+  .bar .who { margin-left:auto; color:var(--text-3); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .link { background:none; border:0; padding:6px 4px; color:var(--accent); cursor:pointer; font-size:14px; }
+
+  /* Sign-in */
+  .gate { max-width:400px; margin:14vh auto 0; padding:0 24px; text-align:center; }
+  .gate h1 { margin:0 0 10px; font-size:34px; font-weight:600; letter-spacing:-.035em; line-height:1.05; }
+  .gate p { margin:0 0 24px; color:var(--text-2); font-size:17px; }
+  .gate form { display:grid; gap:12px; }
+  .gate input { height:52px; padding:0 16px; border-radius:14px; border:1px solid var(--line-2); background:var(--card); font-size:17px; outline:none; }
+  .gate input:focus-visible { border-color:var(--accent); box-shadow:0 0 0 4px rgba(59,155,255,.25); outline:none; }
+  .cta { height:52px; border:0; border-radius:999px; background:var(--cta); color:#fff; font-weight:500; font-size:17px; cursor:pointer;
+         box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 8px 24px rgba(10,124,255,.25); }
+  .cta[disabled] { opacity:.6; }
+  .note { min-height:22px; margin:14px 0 0; font-size:14px; color:var(--text-2); }
+
+  /* Dashboard */
+  .wrap { max-width:1180px; margin:0 auto; padding:28px 24px 80px; }
+  .head { display:flex; flex-wrap:wrap; align-items:end; gap:16px 24px; margin:0 0 22px; }
+  .head h1 { margin:0; font-size:30px; font-weight:600; letter-spacing:-.035em; }
+  .filters { margin-left:auto; display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; }
+  .seg { display:inline-flex; padding:3px; border-radius:10px; background:var(--card); border:1px solid var(--line); }
+  .seg button { border:0; background:none; padding:6px 12px; border-radius:7px; color:var(--text-2); cursor:pointer; font-size:14px; }
+  .seg button[aria-pressed=true] { background:var(--raised); color:var(--text); }
+  select { height:36px; padding:0 10px; border-radius:10px; border:1px solid var(--line); background:var(--card); font-size:14px; }
+  .check { display:inline-flex; align-items:center; gap:7px; color:var(--text-2); font-size:14px; }
+
+  .tiles { display:grid; grid-template-columns:repeat(6, 1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:16px; overflow:hidden; margin:0 0 18px; }
+  .tile { background:var(--card); padding:16px 18px 18px; min-width:0; }
+  .tile .label { color:var(--text-2); font-size:13px; }
+  .tile .value { margin-top:6px; font-size:30px; font-weight:600; letter-spacing:-.03em; line-height:1.05; font-variant-numeric:tabular-nums; }
+  .tile .sub { margin-top:6px; color:var(--text-3); font-size:13px; min-height:19px; }
+
+  .grid { display:grid; grid-template-columns:repeat(12, 1fr); gap:18px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px 20px; min-width:0; }
+  .panel h2 { margin:0; font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  .panel .hint { margin:3px 0 14px; color:var(--text-3); font-size:13px; }
+  .c12 { grid-column:span 12; } .c7 { grid-column:span 7; } .c5 { grid-column:span 5; } .c6 { grid-column:span 6; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin:0 0 10px; color:var(--text-2); font-size:13px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .chart { position:relative; }
+  .chart svg { display:block; width:100%; height:auto; overflow:visible; }
+  .chart text { font-family:var(--sans); fill:var(--text-3); font-size:11px; }
+  .chart .val { fill:var(--text); font-size:12px; font-weight:600; }
+  .chart .cat { fill:var(--text-2); font-size:13px; }
+  .chart .more { fill:var(--text-3); font-weight:400; }
+  .hit { fill:transparent; cursor:default; }
+  .hit:hover, .hit:focus { fill:rgba(255,255,255,.05); }
+  .empty { padding:34px 8px; text-align:center; color:var(--text-3); font-size:14px; }
+  .tip { position:absolute; z-index:5; pointer-events:none; min-width:130px; padding:9px 11px; border-radius:10px; background:#1c1c1f; border:1px solid var(--line-2); box-shadow:0 10px 30px rgba(0,0,0,.6); font-size:13px; }
+  .tip .t { color:var(--text-2); margin-bottom:5px; }
+  .tip .r { display:flex; align-items:center; gap:7px; }
+  .tip .r b { font-weight:600; font-variant-numeric:tabular-nums; }
+  .tip .r i { width:10px; height:2px; border-radius:1px; display:inline-block; }
+  .tip .r span { color:var(--text-2); }
+
+  details { margin-top:12px; }
+  summary { color:var(--accent); cursor:pointer; font-size:13px; width:max-content; }
+  .scroll { overflow:auto; max-height:420px; margin-top:10px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; font-weight:500; color:var(--text-3); font-size:13px; padding:8px 10px; border-bottom:1px solid var(--line-2); position:sticky; top:0; background:var(--card); white-space:nowrap; }
+  td { padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td.wrapok { white-space:normal; word-break:break-all; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; border:1px solid var(--line-2); color:var(--text-2); font-size:12px; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 12px; }
+  .ghost { height:34px; padding:0 14px; border-radius:999px; border:1px solid var(--line-2); background:none; cursor:pointer; font-size:13px; }
+  .foot { margin:22px 2px 0; color:var(--text-3); font-size:13px; max-width:760px; }
+
+  @media (max-width:980px) { .tiles { grid-template-columns:repeat(3, 1fr); } .c7, .c5, .c6 { grid-column:span 12; } }
+  @media (max-width:560px) { .tiles { grid-template-columns:repeat(2, 1fr); } .bar, .wrap { padding-left:16px; padding-right:16px; } .filters { margin-left:0; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <img src="https://iretina.app/assets/v2/logo-128.png" alt="">
+  <span class="name">iRetina metrics</span>
+  <span class="who" id="who"></span>
+  <button class="link" id="out" hidden>Sign out</button>
+</header>
+
+<!-- Sign-in screen. It shows when there is no valid session. -->
+<main class="gate" id="gate" hidden>
+  <h1>Admin sign-in</h1>
+  <p>Type your admin email. We send you a sign-in link.</p>
+  <form id="login" novalidate>
+    <input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="Admin email" aria-label="Admin email" required>
+    <button class="cta" id="go" type="submit">Send sign-in link</button>
+  </form>
+  <p class="note" id="note" role="status"></p>
+</main>
+
+<!-- The dashboard. It shows after sign-in. -->
+<main class="wrap" id="dash" hidden>
+  <div class="head">
+    <h1>Flyer results</h1>
+    <div class="filters">
+      <div class="seg" id="range" role="group" aria-label="Time range">
+        <button data-days="7" aria-pressed="false">7 days</button>
+        <button data-days="30" aria-pressed="true">30 days</button>
+        <button data-days="90" aria-pressed="false">90 days</button>
+        <button data-days="0" aria-pressed="false">All time</button>
+      </div>
+      <select id="campaign" aria-label="Campaign"><option value="">All campaigns</option></select>
+      <label class="check"><input type="checkbox" id="tests"> Show test data</label>
+      <button class="link" id="refresh">Refresh</button>
+    </div>
+  </div>
+
+  <section class="tiles" id="tiles" aria-label="Totals"></section>
+
+  <div class="grid">
+    <section class="panel c12">
+      <h2>QR scans per day</h2>
+      <p class="hint">Each scan of a flyer code. Days are in your local time.</p>
+      <div class="legend" id="dayLegend"></div>
+      <div class="chart" id="dayChart"></div>
+      <details><summary>Show as a table</summary><div class="scroll" id="dayTable"></div></details>
+    </section>
+
+    <section class="panel c7">
+      <h2>Mac path: scan, email, App Store</h2>
+      <p class="hint">How many people go on to the next step.</p>
+      <div class="chart" id="funnel"></div>
+    </section>
+
+    <section class="panel c5">
+      <h2>Phones and computers</h2>
+      <p class="hint">The device that opened the link.</p>
+      <div class="chart" id="devices"></div>
+    </section>
+
+    <section class="panel c12">
+      <h2>Scans by hour of the day</h2>
+      <p class="hint">Use this to see when students look at the flyers. Hours are in your local time.</p>
+      <div class="chart" id="hours"></div>
+    </section>
+
+    <section class="panel c12">
+      <h2>Campaigns</h2>
+      <p class="hint">The campaign is the first word in the QR link. For example, go.iretina.app/college/ios is “college”.</p>
+      <div class="scroll" id="campTable"></div>
+    </section>
+
+    <section class="panel c12">
+      <h2>People</h2>
+      <p class="hint">Emails from the Mac page and the Windows waitlist. The newest is first.</p>
+      <div class="actions">
+        <button class="ghost" id="csvMac">Download Mac email list (CSV)</button>
+        <button class="ghost" id="csvWin">Download Windows waitlist (CSV)</button>
+      </div>
+      <div class="scroll" id="peopleTable"></div>
+    </section>
+  </div>
+
+  <p class="foot">This page counts scans, emails and link clicks. It cannot see App Store installs or payments. Those numbers are in App Store Connect. The Windows waitlist gets one email at launch and no marketing emails.</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var SERIES = [
+    { key: 'ios', name: 'iPhone code', color: 'var(--s-ios)' },
+    { key: 'mac', name: 'Mac code', color: 'var(--s-mac)' },
+    { key: 'windows', name: 'Windows link', color: 'var(--s-win)' }
+  ];
+  var state = { days: 30, campaign: '', tests: false, data: null };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- small helpers ----------
+  function h(tag, attrs, text) {            // makes an HTML element
+    var e = document.createElement(tag);
+    for (var k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function s(tag, attrs, text) {            // makes an SVG element
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); return node; }
+  function fmt(n) { return Number(n).toLocaleString('en-US'); }
+  function pct(a, b) { return b > 0 ? Math.round((a / b) * 100) + '%' : '—'; }
+  function dayKey(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function dayLabel(key, long) {
+    var p = key.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return d.toLocaleDateString('en-US', long ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' });
+  }
+  function niceMax(v) {                     // a clean top value for the axis
+    if (v <= 4) return 4;
+    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+  }
+
+  // One shared tooltip for each chart box.
+  function tooltip(box) {
+    var tip = h('div', { class: 'tip', hidden: '' });
+    box.appendChild(tip);
+    return {
+      show: function (title, rows, x, y) {
+        clear(tip);
+        tip.appendChild(h('div', { class: 't' }, title));
+        rows.forEach(function (r) {
+          var row = h('div', { class: 'r' });
+          if (r.color) { var key = h('i'); key.style.background = r.color; row.appendChild(key); }
+          row.appendChild(h('b', null, r.value));
+          row.appendChild(h('span', null, r.name));
+          tip.appendChild(row);
+        });
+        tip.hidden = false;
+        var w = box.clientWidth, tw = tip.offsetWidth;
+        tip.style.left = Math.max(0, Math.min(w - tw, x - tw / 2)) + 'px';
+        tip.style.top = Math.max(0, y - tip.offsetHeight - 10) + 'px';
+      },
+      hide: function () { tip.hidden = true; }
+    };
+  }
+
+  // ---------- data ----------
+  function load() {
+    return fetch('/api/admin?action=data&days=0', { credentials: 'same-origin' }).then(function (r) {
+      if (r.status === 401) { showGate(); return null; }
+      return r.json().then(function (d) {
+        if (!d.ok) throw new Error(d.error || 'Could not load the numbers.');
+        d.events.forEach(function (e) { e.t = new Date(e.at); });
+        d.people.forEach(function (p) { p.t = new Date(p.at); });
+        state.data = d;
+        showDash(d.admin);
+        render();
+        return d;
+      });
+    });
+  }
+
+  // The events that match the filters.
+  function filtered() {
+    var since = state.days > 0 ? Date.now() - state.days * 86400000 : 0;
+    return state.data.events.filter(function (e) {
+      if (e.t.getTime() < since) return false;
+      if (!state.tests && e.campaign === 'test') return false;
+      if (state.campaign && e.campaign !== state.campaign) return false;
+      return true;
+    });
+  }
+  function count(list, test) { var n = 0; list.forEach(function (e) { if (test(e)) n++; }); return n; }
+
+  // ---------- render ----------
+  function render() {
+    var ev = filtered();
+    fillCampaigns();
+    renderTiles(ev);
+    renderDays(ev);
+    renderFunnel(ev);
+    renderDevices(ev);
+    renderHours(ev);
+    renderCampaignTable(ev);
+    renderPeople();
+  }
+
+  function fillCampaigns() {
+    var sel = $('campaign'), names = {};
+    state.data.events.forEach(function (e) { if (e.campaign !== 'unsubscribe' && (state.tests || e.campaign !== 'test')) names[e.campaign] = 1; });
+    var list = Object.keys(names).sort();
+    if (sel.options.length - 1 === list.length) return;
+    clear(sel).appendChild(h('option', { value: '' }, 'All campaigns'));
+    list.forEach(function (n) { sel.appendChild(h('option', { value: n }, n)); });
+    sel.value = list.indexOf(state.campaign) >= 0 ? state.campaign : '';
+    state.campaign = sel.value;
+  }
+
+  function renderTiles(ev) {
+    var scans = ev.filter(function (e) { return e.type === 'scan'; });
+    var people = {}; scans.forEach(function (e) { people[e.visitor] = 1; });
+    var ios = count(scans, function (e) { return e.platform === 'ios'; });
+    var mac = count(scans, function (e) { return e.platform === 'mac'; });
+    var leads = count(ev, function (e) { return e.type === 'lead'; });
+    var clicks = count(ev, function (e) { return e.type === 'click' && e.source === 'email'; });
+    var wait = count(ev, function (e) { return e.type === 'waitlist'; });
+    var tiles = [
+      ['QR scans', fmt(scans.length), fmt(Object.keys(people).length) + ' different people'],
+      ['iPhone code scans', fmt(ios), 'Sent to the App Store'],
+      ['Mac code scans', fmt(mac), 'Opened the email page'],
+      ['Mac emails', fmt(leads), pct(leads, mac) + ' of Mac scans'],
+      ['Email button clicks', fmt(clicks), pct(clicks, leads) + ' of emails'],
+      ['Windows waitlist', fmt(wait), 'One email at launch']
+    ];
+    var box = clear($('tiles'));
+    tiles.forEach(function (t) {
+      var tile = h('div', { class: 'tile' });
+      tile.appendChild(h('div', { class: 'label' }, t[0]));
+      tile.appendChild(h('div', { class: 'value' }, t[1]));
+      tile.appendChild(h('div', { class: 'sub' }, t[2]));
+      box.appendChild(tile);
+    });
+  }
+
+  // Stacked columns: scans for each day, split by QR code.
+  function renderDays(ev) {
+    var scans = ev.filter(function (e) { return e.type === 'scan'; });
+    var box = clear($('dayChart')), legend = clear($('dayLegend')), tableBox = clear($('dayTable'));
+    if (!scans.length) { box.appendChild(h('div', { class: 'empty' }, 'No scans in this time range. The first scan of a flyer code shows here.')); return; }
+
+    // The list of days on the axis.
+    var end = new Date(); end.setHours(0, 0, 0, 0);
+    var first = scans[scans.length - 1].t;
+    var span = state.days > 0 ? state.days : Math.min(180, Math.max(7, Math.ceil((end - first) / 86400000) + 1));
+    var days = [], index = {};
+    for (var i = span - 1; i >= 0; i--) { var d = new Date(end); d.setDate(end.getDate() - i); var k = dayKey(d); index[k] = days.length; days.push({ key: k, ios: 0, mac: 0, windows: 0 }); }
+    scans.forEach(function (e) { var at = index[dayKey(e.t)]; if (at != null) days[at][e.platform] = (days[at][e.platform] || 0) + 1; });
+    var used = SERIES.filter(function (sr) { return days.some(function (d) { return d[sr.key] > 0; }); });
+
+    used.forEach(function (sr) { var item = h('span'); var sw = h('i'); sw.style.background = sr.color; item.appendChild(sw); item.appendChild(document.createTextNode(sr.name)); legend.appendChild(item); });
+
+    var W = Math.max(320, box.clientWidth), H = 240, L = 34, R = 8, T = 10, B = 26;
+    var max = niceMax(Math.max.apply(null, days.map(function (d) { return d.ios + d.mac + d.windows; })));
+    var slot = (W - L - R) / days.length, bw = Math.max(2, Math.min(24, slot - 2));
+    var y = function (v) { return T + (H - T - B) * (1 - v / max); };
+    var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'QR scans per day, by code. The same numbers are in the table below.' });
+    [0, max / 2, max].forEach(function (v) {
+      svg.appendChild(s('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: 'var(--grid)', 'stroke-width': 1 }));
+      svg.appendChild(s('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, fmt(v)));
+    });
+    var tip = tooltip(box), step = Math.ceil(days.length / Math.max(2, Math.floor((W - L - R) / 70)));
+    days.forEach(function (d, i) {
+      var cx = L + slot * i + slot / 2, base = 0, total = d.ios + d.mac + d.windows;
+      var top = used.filter(function (sr) { return d[sr.key] > 0; }).pop();
+      used.forEach(function (sr) {
+        var v = d[sr.key]; if (!v) return;
+        var y0 = y(base), y1 = y(base + v), hgt = Math.max(1, y0 - y1 - (base ? 2 : 0)), r = sr === top ? Math.min(4, bw / 2, hgt) : 0;
+        var x0 = cx - bw / 2, yb = y1 + hgt;   // the gap of 2px sits between segments
+        svg.appendChild(s('path', { fill: sr.color, d: 'M' + x0 + ' ' + yb + 'V' + (y1 + r) + 'q0 ' + (-r) + ' ' + r + ' ' + (-r) + 'H' + (x0 + bw - r) + 'q' + r + ' 0 ' + r + ' ' + r + 'V' + yb + 'Z' }));
+        base += v;
+      });
+      if (i % step === 0 || i === days.length - 1) svg.appendChild(s('text', { x: cx, y: H - 8, 'text-anchor': i === days.length - 1 ? 'end' : 'middle' }, dayLabel(d.key)));
+      // A full-height hit area for each day, so the pointer does not need to land on the bar.
+      var hit = s('rect', { class: 'hit', x: L + slot * i, y: T, width: slot, height: H - T - B, tabindex: 0, 'aria-label': dayLabel(d.key, true) + ': ' + total + ' scans' });
+      var open = function () { tip.show(dayLabel(d.key, true), (used.length > 1 ? used : SERIES.slice(0, 1)).map(function (sr) { return { color: sr.color, value: fmt(d[sr.key]), name: sr.name }; }).concat(used.length > 1 ? [{ value: fmt(total), name: 'Total' }] : []), cx / W * box.clientWidth, y(total) / H * (box.clientWidth * H / W)); };
+      hit.addEventListener('pointermove', open); hit.addEventListener('focus', open);
+      hit.addEventListener('pointerleave', tip.hide); hit.addEventListener('blur', tip.hide);
+      svg.appendChild(hit);
+    });
+    box.insertBefore(svg, box.firstChild);
+
+    var rows = days.filter(function (d) { return d.ios + d.mac + d.windows > 0; }).reverse().map(function (d) { return [dayLabel(d.key, true), d.ios, d.mac, d.windows, d.ios + d.mac + d.windows]; });
+    tableBox.appendChild(table(['Day', 'iPhone code', 'Mac code', 'Windows link', 'Total'], rows, [1, 2, 3, 4]));
+  }
+
+  // Horizontal bars with the value at the end of each bar.
+  function hbars(box, rows, color, emptyText) {
+    clear(box);
+    if (!rows.some(function (r) { return r.value > 0; })) { box.appendChild(h('div', { class: 'empty' }, emptyText)); return; }
+    var W = Math.max(280, box.clientWidth), rowH = 44, L = 0, R = 110, H = rows.length * rowH + 4;
+    var max = Math.max.apply(null, rows.map(function (r) { return r.value; }));
+    var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': rows.map(function (r) { return r.name + ': ' + r.value; }).join('. ') });
+    var tip = tooltip(box);
+    rows.forEach(function (r, i) {
+      var y0 = i * rowH, w = Math.max(r.value > 0 ? 3 : 0, (W - L - R) * r.value / max), bh = 16, by = y0 + 22, rad = Math.min(4, w / 2);
+      svg.appendChild(s('text', { class: 'cat', x: L, y: y0 + 14 }, r.name));
+      if (w > 0) svg.appendChild(s('path', { fill: color, d: 'M' + L + ' ' + by + 'H' + (L + w - rad) + 'q' + rad + ' 0 ' + rad + ' ' + rad + 'V' + (by + bh - rad) + 'q0 ' + rad + ' ' + (-rad) + ' ' + rad + 'H' + L + 'Z' }));
+      var label = s('text', { class: 'val', x: L + w + 8, y: by + 12 }, fmt(r.value));
+      if (r.note) label.appendChild(s('tspan', { dx: 8, class: 'more' }, r.note));
+      svg.appendChild(label);
+      var hit = s('rect', { class: 'hit', x: 0, y: y0, width: W, height: rowH, tabindex: 0, 'aria-label': r.name + ': ' + r.value + (r.note ? ', ' + r.note : '') });
+      var open = function () { tip.show(r.name, [{ color: color, value: fmt(r.value), name: r.note || 'events' }], Math.min(W - 80, L + w) / W * box.clientWidth, by / H * (box.clientWidth * H / W)); };
+      hit.addEventListener('pointermove', open); hit.addEventListener('focus', open);
+      hit.addEventListener('pointerleave', tip.hide); hit.addEventListener('blur', tip.hide);
+      svg.appendChild(hit);
+    });
+    box.insertBefore(svg, box.firstChild);
+  }
+
+  function renderFunnel(ev) {
+    var mac = count(ev, function (e) { return e.type === 'scan' && e.platform === 'mac'; });
+    var leads = count(ev, function (e) { return e.type === 'lead'; });
+    var clicks = count(ev, function (e) { return e.type === 'click' && e.source === 'email'; });
+    hbars($('funnel'), [
+      { name: 'Scanned the Mac code', value: mac, note: '' },
+      { name: 'Typed an email', value: leads, note: mac ? pct(leads, mac) + ' of scans' : '' },
+      { name: 'Pressed the App Store button in the email', value: clicks, note: leads ? pct(clicks, leads) + ' of emails' : '' }
+    ], 'var(--s-mac)', 'No Mac scans in this time range.');
+  }
+
+  function renderDevices(ev) {
+    var names = { iphone: 'iPhone', android: 'Android phone', mac: 'Mac or iPad', windows: 'Windows PC', other: 'Other' };
+    var scans = ev.filter(function (e) { return e.type === 'scan'; }), total = scans.length;
+    var rows = Object.keys(names).map(function (k) { var v = count(scans, function (e) { return e.device === k; }); return { name: names[k], value: v, note: total ? pct(v, total) : '' }; })
+      .filter(function (r) { return r.value > 0; }).sort(function (a, b) { return b.value - a.value; });
+    hbars($('devices'), rows, 'var(--s-one)', 'No scans in this time range.');
+  }
+
+  // 24 columns, one for each hour.
+  function renderHours(ev) {
+    var box = clear($('hours')), scans = ev.filter(function (e) { return e.type === 'scan'; });
+    if (!scans.length) { box.appendChild(h('div', { class: 'empty' }, 'No scans in this time range.')); return; }
+    var hours = []; for (var i = 0; i < 24; i++) hours.push(0);
+    scans.forEach(function (e) { hours[e.t.getHours()]++; });
+    var W = Math.max(320, box.clientWidth), H = 190, L = 34, R = 8, T = 18, B = 26, max = niceMax(Math.max.apply(null, hours));
+    var slot = (W - L - R) / 24, bw = Math.min(24, slot - 2), peak = hours.indexOf(Math.max.apply(null, hours));
+    var y = function (v) { return T + (H - T - B) * (1 - v / max); };
+    var label = function (hr) { return (hr % 12 || 12) + (hr < 12 ? ' AM' : ' PM'); };
+    var svg = s('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': 'Scans by hour. The busiest hour is ' + label(peak) + ' with ' + hours[peak] + ' scans.' });
+    [0, max].forEach(function (v) {
+      svg.appendChild(s('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: 'var(--grid)', 'stroke-width': 1 }));
+      svg.appendChild(s('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, fmt(v)));
+    });
+    var tip = tooltip(box);
+    hours.forEach(function (v, hr) {
+      var cx = L + slot * hr + slot / 2, x0 = cx - bw / 2, yb = y(0), y1 = y(v), r = Math.min(4, bw / 2, yb - y1);
+      if (v > 0) svg.appendChild(s('path', { fill: 'var(--s-one)', d: 'M' + x0 + ' ' + yb + 'V' + (y1 + r) + 'q0 ' + (-r) + ' ' + r + ' ' + (-r) + 'H' + (x0 + bw - r) + 'q' + r + ' 0 ' + r + ' ' + r + 'V' + yb + 'Z' }));
+      if (hr === peak) svg.appendChild(s('text', { class: 'val', x: cx, y: y1 - 6, 'text-anchor': 'middle' }, fmt(v)));
+      if (hr % 3 === 0) svg.appendChild(s('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, label(hr)));
+      var hit = s('rect', { class: 'hit', x: L + slot * hr, y: T, width: slot, height: H - T - B, tabindex: 0, 'aria-label': label(hr) + ': ' + v + ' scans' });
+      var open = function () { tip.show(label(hr) + ' to ' + label((hr + 1) % 24), [{ color: 'var(--s-one)', value: fmt(v), name: 'scans' }], cx / W * box.clientWidth, y1 / H * (box.clientWidth * H / W)); };
+      hit.addEventListener('pointermove', open); hit.addEventListener('focus', open);
+      hit.addEventListener('pointerleave', tip.hide); hit.addEventListener('blur', tip.hide);
+      svg.appendChild(hit);
+    });
+    box.insertBefore(svg, box.firstChild);
+  }
+
+  function table(heads, rows, numCols, wrapCol) {
+    var t = h('table'), thead = h('thead'), tr = h('tr'), tb = h('tbody');
+    heads.forEach(function (x, i) { tr.appendChild(h('th', numCols.indexOf(i) >= 0 ? { class: 'num' } : null, x)); });
+    thead.appendChild(tr); t.appendChild(thead);
+    rows.forEach(function (r) {
+      var row = h('tr');
+      r.forEach(function (c, i) {
+        var td = h('td', numCols.indexOf(i) >= 0 ? { class: 'num' } : i === wrapCol ? { class: 'wrapok' } : null);
+        if (c && c.tag) td.appendChild(h('span', { class: 'tag' }, c.tag)); else td.textContent = typeof c === 'number' ? fmt(c) : c;
+        row.appendChild(td);
+      });
+      tb.appendChild(row);
+    });
+    t.appendChild(tb);
+    return t;
+  }
+
+  function renderCampaignTable(ev) {
+    var box = clear($('campTable')), by = {};
+    ev.forEach(function (e) {
+      if (e.campaign === 'unsubscribe') return;
+      var c = by[e.campaign] || (by[e.campaign] = { ios: 0, mac: 0, lead: 0, click: 0, wait: 0 });
+      if (e.type === 'scan' && e.platform === 'ios') c.ios++;
+      else if (e.type === 'scan' && e.platform === 'mac') c.mac++;
+      else if (e.type === 'lead') c.lead++;
+      else if (e.type === 'click' && e.source === 'email') c.click++;
+      else if (e.type === 'waitlist') c.wait++;
+    });
+    var rows = Object.keys(by).map(function (n) { var c = by[n]; return [n, c.ios, c.mac, c.lead, pct(c.lead, c.mac), c.click, c.wait]; })
+      .sort(function (a, b) { return (b[1] + b[2]) - (a[1] + a[2]); });
+    if (!rows.length) { box.appendChild(h('div', { class: 'empty' }, 'No campaigns in this time range.')); return; }
+    box.appendChild(table(['Campaign', 'iPhone scans', 'Mac scans', 'Mac emails', 'Scan to email', 'App Store clicks', 'Windows waitlist'], rows, [1, 2, 3, 4, 5, 6]));
+  }
+
+  // The people list ignores the time range, so the full list is always there. It follows the test filter.
+  function peopleRows() {
+    var unsub = {};
+    state.data.people.forEach(function (p) { if (p.type === 'unsub') unsub[p.email] = 1; });
+    return state.data.people.filter(function (p) { return p.type !== 'unsub' && (state.tests || p.campaign !== 'test') && (!state.campaign || p.campaign === state.campaign); })
+      .map(function (p) { return { t: p.t, email: p.email, list: p.type === 'waitlist' ? 'Windows waitlist' : 'Mac link', campaign: p.campaign, off: p.type === 'lead' && unsub[p.email] }; });
+  }
+  function renderPeople() {
+    var box = clear($('peopleTable')), rows = peopleRows();
+    if (!rows.length) { box.appendChild(h('div', { class: 'empty' }, 'No emails yet. An email shows here when a person sends the form.')); return; }
+    box.appendChild(table(['Date', 'Email', 'List', 'Campaign', 'Status'], rows.map(function (r) {
+      return [r.t.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }), r.email, r.list, r.campaign, r.off ? { tag: 'Unsubscribed' } : r.list === 'Windows waitlist' ? { tag: 'Launch email only' } : { tag: 'Can email' }];
+    }), [], 1));
+  }
+  function download(name, rows) {
+    var seen = {}, lines = ['email,date,campaign'];
+    rows.forEach(function (r) { if (seen[r.email]) return; seen[r.email] = 1; lines.push([r.email, r.t.toISOString().slice(0, 10), r.campaign].map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(',')); });
+    var a = h('a', { href: URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' })), download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // ---------- screens and controls ----------
+  function showGate() { $('dash').hidden = true; $('gate').hidden = false; $('out').hidden = true; $('who').textContent = ''; }
+  function showDash(admin) { $('gate').hidden = true; $('dash').hidden = false; $('out').hidden = false; $('who').textContent = admin; }
+
+  $('range').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    state.days = +b.getAttribute('data-days');
+    [].forEach.call(this.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    render();
+  });
+  $('campaign').addEventListener('change', function () { state.campaign = this.value; render(); });
+  $('tests').addEventListener('change', function () { state.tests = this.checked; render(); });
+  $('refresh').addEventListener('click', function () { var b = this; b.textContent = 'Loading…'; load().catch(function () {}).then(function () { b.textContent = 'Refresh'; }); });
+  $('csvMac').addEventListener('click', function () { download('iretina-mac-emails.csv', peopleRows().filter(function (r) { return r.list === 'Mac link' && !r.off; })); });
+  $('csvWin').addEventListener('click', function () { download('iretina-windows-waitlist.csv', peopleRows().filter(function (r) { return r.list === 'Windows waitlist'; })); });
+  $('out').addEventListener('click', function () { fetch('/api/admin?action=logout', { method: 'POST' }).then(showGate); });
+
+  $('login').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var email = $('email').value.trim(), go = $('go'), note = $('note');
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) { note.textContent = 'Type a full email address.'; return; }
+    go.disabled = true; go.textContent = 'Sending…';
+    fetch('/api/admin?action=login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
+      .then(function () { note.textContent = 'If this address is an admin, the link is in your inbox now. It works for 15 minutes.'; })
+      .catch(function () { note.textContent = 'No connection. Try again.'; })
+      .then(function () { go.disabled = false; go.textContent = 'Send sign-in link'; });
+  });
+
+  var resizeTimer;
+  window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { if (state.data) render(); }, 150); });
+
+  if (/link=expired/.test(location.search)) { $('note').textContent = 'That link is too old or not valid. Ask for a new one.'; history.replaceState(null, '', '/admin'); }
+  load().catch(function (e) { showGate(); $('note').textContent = e.message; });
+})();
+</script>
+</body>
+</html>

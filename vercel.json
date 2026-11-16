@@ -5,6 +5,7 @@
     { "source": "/ios", "destination": "/api/go?p=ios&c=direct" },
     { "source": "/mac", "destination": "/" },
     { "source": "/unsubscribe", "destination": "/api/unsubscribe" },
+    { "source": "/r/mac", "destination": "/api/go?p=macstore" },
     { "source": "/:campaign/ios", "destination": "/api/go?p=ios&c=:campaign" },
     { "source": "/:campaign/mac", "destination": "/" },
     { "source": "/windows", "destination": "/" },

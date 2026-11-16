@@ -150,7 +150,7 @@
     <p class="sub win-only">Type your email. We send you one email when it is ready.</p>
 
     <div class="on-mac mac-only">
-      <a class="btn" href="https://apps.apple.com/us/app/iretina-pro/id6781700588?mt=12">Open the Mac App Store</a>
+      <a class="btn" id="store" href="/r/mac">Open the Mac App Store</a>
       <p>Not on your Mac now? Email the link to yourself.</p>
     </div>
 
@@ -191,6 +191,7 @@
   var fromQuery = new URLSearchParams(location.search).get('loc');
   var campaign = (parts.length > 1 ? parts[0] : (fromQuery || 'direct')).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32) || 'direct';
   document.getElementById('ios').href = '/' + campaign + '/ios';
+  document.getElementById('store').href = '/r/mac?s=page&c=' + encodeURIComponent(campaign);
 
   // The page has two modes. "mac" emails the Mac link. "windows" adds the person to the Windows waitlist.
   // The mode starts as "windows" for the link /college/windows and for a person who is on a Windows PC.
@@ -212,7 +213,8 @@
   try {
     if (!sessionStorage.getItem('scan')) {
       sessionStorage.setItem('scan', '1');
-      fetch('/api/go?p=mac&beacon=1&c=' + encodeURIComponent(campaign), { keepalive: true }).catch(function () {});
+      var page = parts[parts.length - 1] === 'windows' ? 'windows' : 'mac';
+      fetch('/api/go?p=' + page + '&beacon=1&c=' + encodeURIComponent(campaign), { keepalive: true }).catch(function () {});
     }
   } catch (e) { /* storage is off: skip the count */ }
 

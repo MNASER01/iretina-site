@@ -1,20 +1,30 @@
-// Records one QR scan.
-//   /college/ios  -> records the scan, then sends the phone to the App Store.
-//   Mac page load -> the page calls /api/go?p=mac&c=college&beacon=1 and this records the scan only.
-import { IOS_URL, cleanCampaign, logToSheet } from './_lib.js';
-
-const BOT = /bot|crawl|spider|preview|facebookexternalhit|slurp|monitor|headless/i;
+// Records QR scans and link clicks.
+//   /college/ios          -> saves a scan, then sends the phone to the iPhone App Store page.
+//   page load (beacon)    -> the email page calls /api/go?p=mac&beacon=1 and this saves the scan only.
+//   /r/mac                -> saves a click on "Get iRetina for Mac", then opens the Mac App Store page.
+import { IOS_URL, MAC_URL, cleanCampaign, logToSheet } from './_lib.js';
+import { track, isBot } from './_db.js';
 
 export default async function handler(req, res) {
-  const platform = req.query.p === 'mac' ? 'mac' : 'ios';
+  const p = String(req.query.p || 'ios');
   const campaign = cleanCampaign(req.query.c);
-  const isBot = BOT.test(String(req.headers['user-agent'] || ''));
+  const bot = isBot(req);
   res.setHeader('Cache-Control', 'no-store');
 
-  if (!isBot) {
-    console.log(JSON.stringify({ evt: 'scan', platform, campaign, at: new Date().toISOString() }));
-    await logToSheet('[scan]', `${campaign}/${platform}`);
+  if (p === 'macstore') {
+    const source = req.query.s === 'email' ? 'email' : 'page';
+    if (!bot) await track(req, { type: 'click', platform: 'mac', campaign, source });
+    return res.redirect(302, MAC_URL);
   }
-  if (platform === 'mac') return res.status(204).end();
+
+  const platform = p === 'mac' || p === 'windows' ? p : 'ios';
+  if (!bot) {
+    console.log(JSON.stringify({ evt: 'scan', platform, campaign, at: new Date().toISOString() }));
+    await Promise.allSettled([
+      track(req, { type: 'scan', platform, campaign }),
+      logToSheet('[scan]', `${campaign}/${platform}`),
+    ]);
+  }
+  if (platform !== 'ios') return res.status(204).end();
   return res.redirect(302, IOS_URL);
 }

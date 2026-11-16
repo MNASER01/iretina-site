@@ -1,7 +1,8 @@
 // Runs when a person sends the form on the Mac page.
 // It emails the Mac App Store link, saves the lead, and tells the owner.
 // Settings come from the Vercel Environment Variables: RESEND_API_KEY, FROM_EMAIL, NOTIFY_EMAIL, SHEET_WEBHOOK_URL.
-import { MAC_URL, IOS_URL, SITE, cleanCampaign, unsubToken, resend, logToSheet } from './_lib.js';
+import { IOS_URL, SITE, cleanCampaign, unsubToken, resend, logToSheet } from './_lib.js';
+import { track } from './_db.js';
 
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,185}\.[a-z]{2,24}$/i;
 
@@ -29,7 +30,7 @@ export default async function handler(req, res) {
   // The lead goes to the sheet and to the owner. At least one of these two must work.
   if (body.platform === 'windows') {
     const poster = campaign + '/windows-waitlist';
-    let saved = Boolean(process.env.SHEET_WEBHOOK_URL);
+    let saved = await track(req, { type: 'waitlist', platform: 'windows', campaign, email });
     await logToSheet(email, poster);
     if (process.env.NOTIFY_EMAIL) {
       const note = await resend('/emails', 'POST', {
@@ -50,8 +51,8 @@ export default async function handler(req, res) {
     from,
     to: [email],
     subject: 'Your iRetina for Mac link',
-    html: emailHtml(unsub),
-    text: emailText(unsub),
+    html: emailHtml(unsub, campaign),
+    text: emailText(unsub, campaign),
     headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
     tags: [{ name: 'campaign', value: campaign }, { name: 'flow', value: 'mac_link' }],
   });
@@ -62,6 +63,7 @@ export default async function handler(req, res) {
 
   // 2. Save the lead. These steps can fail without an effect on the person.
   const saves = [
+    track(req, { type: 'lead', platform: 'mac', campaign, email }),
     logToSheet(email, campaign),
     resend('/contacts', 'POST', { email, unsubscribed: false }).catch(() => null),
   ];
@@ -78,12 +80,15 @@ export default async function handler(req, res) {
   return res.status(200).json({ ok: true });
 }
 
-function emailText(unsub) {
+// The button goes through /r/mac. That link counts the click, then opens the Mac App Store.
+const storeLink = (campaign) => `${SITE}/r/mac?c=${encodeURIComponent(campaign)}&s=email`;
+
+function emailText(unsub, campaign) {
   return [
     'Here is your iRetina for Mac link.',
     '',
     'Open this email on your Mac. Then open this link:',
-    MAC_URL,
+    storeLink(campaign),
     '',
     'iRetina gives your eyes a calm 20-second break every 20 minutes.',
     '7-day free trial, then $4.99/month or $49.99/year. Requires macOS 15.5 or later.',
@@ -97,7 +102,7 @@ function emailText(unsub) {
   ].join('\n');
 }
 
-function emailHtml(unsub) {
+function emailHtml(unsub, campaign) {
   const font = "-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',Helvetica,Arial,sans-serif";
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -118,7 +123,7 @@ function emailHtml(unsub) {
   <p style="margin:0 0 26px;font-family:${font};font-size:17px;line-height:1.5;color:#a1a1a6;">Open this email on your Mac. Then press the button.</p>
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
   <td align="center" bgcolor="#0a7cff" style="border-radius:999px;background:#0a7cff;">
-    <a href="${MAC_URL}" style="display:inline-block;padding:14px 26px;font-family:${font};font-size:16px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:999px;">Get iRetina for Mac</a>
+    <a href="${storeLink(campaign)}" style="display:inline-block;padding:14px 26px;font-family:${font};font-size:16px;font-weight:500;color:#ffffff;text-decoration:none;border-radius:999px;">Get iRetina for Mac</a>
   </td></tr></table>
   <p style="margin:28px 0 0;padding-top:22px;border-top:1px solid #232326;font-family:${font};font-size:15px;line-height:1.55;color:#a1a1a6;">Every 20 minutes, iRetina gives your eyes a calm 20-second break. Look about 20 feet away until the countdown ends.</p>
   <p style="margin:12px 0 0;font-family:${font};font-size:15px;line-height:1.55;color:#a1a1a6;">7-day free trial, then $4.99/month or $49.99/year. Requires macOS 15.5 or later.</p>
