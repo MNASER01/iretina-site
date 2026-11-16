@@ -1,7 +1,7 @@
 // The private admin API for the metrics page at /admin.
 //
 // Sign-in has no password. An admin types their email, and the system emails a sign-in link.
-// Only addresses in the Vercel settings NOTIFY_EMAIL or ADMIN_EMAILS (comma-separated) are admins.
+// Only addresses in the Vercel settings NOTIFY_EMAIL, ADMIN_EMAILS and ADMIN_EMAILS_2 are admins.
 //
 //   POST /api/admin?action=login   { email }  -> emails a sign-in link, if the address is an admin
 //   GET  /api/admin?action=verify&t=...       -> checks the link, sets the session cookie, opens /admin
@@ -15,8 +15,11 @@ const COOKIE = '__Host-iretina-admin';
 const LINK_MINUTES = 15;
 const SESSION_DAYS = 30;
 
+// The admin list: NOTIFY_EMAIL, plus all settings whose name starts with ADMIN_EMAILS
+// (for example ADMIN_EMAILS and ADMIN_EMAILS_2). Each setting can hold more than one address, with commas.
 function admins() {
-  return [process.env.NOTIFY_EMAIL, ...(process.env.ADMIN_EMAILS || '').split(',')]
+  const lists = Object.keys(process.env).filter((k) => k.startsWith('ADMIN_EMAILS')).map((k) => process.env[k]);
+  return [process.env.NOTIFY_EMAIL, ...lists.join(',').split(',')]
     .map((e) => String(e || '').trim().toLowerCase())
     .filter(Boolean);
 }
