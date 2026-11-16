@@ -143,7 +143,7 @@
 
     <form id="form" novalidate>
       <label class="sr" for="email">Email address</label>
-      <input id="email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@school.edu" required aria-describedby="error">
+      <input id="email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Your email" required aria-describedby="error">
       <div class="hp" aria-hidden="true"><label>Company <input name="company" tabindex="-1" autocomplete="off"></label></div>
       <button class="btn" id="send" type="submit">Email me the link</button>
       <p class="error" id="error" role="alert"></p>
@@ -204,7 +204,7 @@
     error.textContent = '';
     var email = form.email.value.trim();
     if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) {
-      error.textContent = 'Type a full email address, for example you@school.edu.';
+      error.textContent = 'Type a full email address, for example name@email.com.';
       form.email.focus();
       return;
     }
